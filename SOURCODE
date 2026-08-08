@@ -1,0 +1,270 @@
+import networkx as nx
+import matplotlib.pyplot as plt
+import random
+
+# =====================================
+# 1. MEMBUAT JARINGAN 1000 NODE
+# =====================================
+
+jumlah_node = 1000
+
+# Membuat jaringan menggunakan Barabasi-Albert
+G = nx.barabasi_albert_graph(jumlah_node, 3, seed=42)
+
+# Mengubah menjadi graf berarah
+DG = nx.DiGraph()
+
+# Menambahkan node
+DG.add_nodes_from(G.nodes())
+
+# Memberikan arah dan bobot pada edge
+random.seed(42)
+
+for u, v in G.edges():
+    weight = random.randint(1, 10)
+
+    if random.random() < 0.5:
+        DG.add_edge(u, v, weight=weight)
+    else:
+        DG.add_edge(v, u, weight=weight)
+
+print("Jumlah Node :", DG.number_of_nodes())
+print("Jumlah Edge :", DG.number_of_edges())
+
+# =====================================
+# 2. CENTRALITY
+# =====================================
+
+degree = nx.degree_centrality(DG)
+betweenness = nx.betweenness_centrality(DG)
+closeness = nx.closeness_centrality(DG)
+
+# Eigenvector centrality
+eigenvector = nx.eigenvector_centrality(
+    DG,
+    max_iter=1000,
+    weight="weight"
+)
+
+# Mengambil 5 node tertinggi
+top_degree = sorted(
+    degree.items(),
+    key=lambda x: x[1],
+    reverse=True
+)[:5]
+
+top_betweenness = sorted(
+    betweenness.items(),
+    key=lambda x: x[1],
+    reverse=True
+)[:5]
+
+top_closeness = sorted(
+    closeness.items(),
+    key=lambda x: x[1],
+    reverse=True
+)[:5]
+
+top_eigenvector = sorted(
+    eigenvector.items(),
+    key=lambda x: x[1],
+    reverse=True
+)[:5]
+
+print("\nTop Degree Centrality")
+print(top_degree)
+
+print("\nTop Betweenness Centrality")
+print(top_betweenness)
+
+print("\nTop Closeness Centrality")
+print(top_closeness)
+
+print("\nTop Eigenvector Centrality")
+print(top_eigenvector)
+
+# =====================================
+# 3. KARAKTERISTIK GLOBAL JARINGAN
+# =====================================
+
+density = nx.density(DG)
+
+print("\nDensity :", density)
+
+# Karena diameter membutuhkan jaringan terhubung,
+# gunakan largest strongly connected component
+components = list(nx.strongly_connected_components(DG))
+
+largest_component = max(components, key=len)
+
+SG = DG.subgraph(largest_component).copy()
+
+if SG.number_of_nodes() > 1:
+
+    diameter = nx.diameter(SG)
+
+    avg_path = nx.average_shortest_path_length(SG)
+
+    print("Diameter :", diameter)
+    print("Average Path Length :", avg_path)
+
+# Clustering dihitung dengan versi undirected
+UG = DG.to_undirected()
+
+clustering = nx.average_clustering(
+    UG,
+    weight="weight"
+)
+
+print("Average Clustering Coefficient :", clustering)
+
+# =====================================
+# 4. DETEKSI KOMUNITAS
+# =====================================
+
+communities = nx.community.louvain_communities(
+    UG,
+    weight="weight",
+    seed=42
+)
+
+print("\nJumlah Komunitas :", len(communities))
+
+for i, community in enumerate(communities[:10], 1):
+    print(
+        "Komunitas",
+        i,
+        ":",
+        len(community),
+        "node"
+    )
+
+# Modularity
+modularity = nx.community.modularity(
+    UG,
+    communities,
+    weight="weight"
+)
+
+print("Modularity :", modularity)
+
+# =====================================
+# 5. SIMULASI PENYEBARAN INFORMASI
+# =====================================
+
+def simulasi_penyebaran(graph, sumber):
+
+    informed = {sumber}
+    frontier = {sumber}
+
+    hasil = [len(informed)]
+
+    while frontier:
+
+        baru = set()
+
+        for node in frontier:
+
+            for tetangga in graph.successors(node):
+
+                if tetangga not in informed:
+
+                    baru.add(tetangga)
+
+        if not baru:
+            break
+
+        informed.update(baru)
+
+        frontier = baru
+
+        hasil.append(len(informed))
+
+    return hasil
+
+
+# Node paling penting berdasarkan degree centrality
+node_penting = top_degree[0][0]
+
+hasil_simulasi = simulasi_penyebaran(
+    DG,
+    node_penting
+)
+
+print(
+    "\nNode sumber informasi :",
+    node_penting
+)
+
+print(
+    "Jumlah tahap penyebaran :",
+    len(hasil_simulasi) - 1
+)
+
+print(
+    "Jumlah node yang menerima informasi :",
+    hasil_simulasi[-1]
+)
+
+# =====================================
+# 6. GRAFIK PENYEBARAN INFORMASI
+# =====================================
+
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    range(len(hasil_simulasi)),
+    hasil_simulasi,
+    marker="o"
+)
+
+plt.xlabel("Tahap Penyebaran")
+plt.ylabel("Jumlah Node Terinformasi")
+
+plt.title(
+    "Simulasi Penyebaran Informasi"
+)
+
+plt.grid()
+
+plt.show()
+
+# =====================================
+# 7. VISUALISASI JARINGAN
+# =====================================
+
+plt.figure(figsize=(12, 10))
+
+pos = nx.spring_layout(
+    UG,
+    seed=42,
+    k=0.15
+)
+
+# Ukuran node berdasarkan degree centrality
+node_size = [
+    20 + degree[n] * 2000
+    for n in UG.nodes()
+]
+
+nx.draw_networkx_nodes(
+    UG,
+    pos,
+    node_size=node_size,
+    alpha=0.7
+)
+
+nx.draw_networkx_edges(
+    UG,
+    pos,
+    alpha=0.1,
+    width=0.5
+)
+
+plt.title(
+    "Visualisasi Jejaring Sosial 1000 Node"
+)
+
+plt.axis("off")
+
+plt.show()
